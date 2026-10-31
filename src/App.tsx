@@ -7,6 +7,7 @@ import Offices from "./views/Offices";
 import Team from "./views/Team";
 import Admin from "./views/Admin";
 import OfficePanel from "./views/OfficePanel";
+import { BUNDLED_OFFICES, importOffices } from "./lib/importOffices";
 
 const DEFAULT_SETTINGS: Settings = {
   phone: "317-308-4007",
@@ -162,6 +163,21 @@ function Signed({ session }: { session: Session }) {
   useEffect(() => {
     reload();
   }, [reload]);
+
+  // First admin sign-in: load the bundled NPI office list if the database doesn't have it yet.
+  const autoLoaded = useRef(false);
+  useEffect(() => {
+    if (!me?.is_admin || autoLoaded.current || practices.length === 0 && clinicians.length === 0) return;
+    if (practices.length >= BUNDLED_OFFICES - 5) return;
+    autoLoaded.current = true;
+    toast("Loading the office list…");
+    importOffices().then(async (r) => {
+      if (r.ok) {
+        await reload(["practices"]);
+        toast(`Office list ready: ${r.count} offices`);
+      } else toast("Couldn't load the office list: " + r.error);
+    });
+  }, [me, practices.length, clinicians.length, reload, toast]);
 
   useEffect(() => {
     const ch = supabase

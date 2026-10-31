@@ -3,6 +3,7 @@ import { useStore } from "../App";
 import { supabase } from "../lib/supabase";
 import { CLAIM_STATUSES, SEGMENTS, type Clinician, type Settings } from "../lib/types";
 import { daysSince } from "../lib/util";
+import { importOffices } from "../lib/importOffices";
 
 export default function Admin() {
   const { clinicians, claims, settings, reload, toast, openOffice, practices } = useStore();
@@ -314,36 +315,11 @@ function OfficeImport({
 }) {
   const [busy, setBusy] = useState("");
   const run = async () => {
-    setBusy("Loading list…");
-    const mod = await import("../data/practices.json");
-    const src = (mod.default || mod) as unknown as Array<Record<string, unknown>>;
-    const rows = src.map((p) => ({
-      id: p.id,
-      practice: p.practice,
-      address: p.address || "",
-      city: p.city || "",
-      zip: p.zip || "",
-      phone: p.phone || "",
-      segment: p.segment,
-      system: p.system || "Independent",
-      clinicians: p.clinicians || [],
-      clinician_count: Number(p.count || 0),
-      npis: p.npis || [],
-      taxonomy: p.taxonomy || "",
-      area: p.area,
-      priority: p.priority,
-    }));
-    for (let i = 0; i < rows.length; i += 100) {
-      setBusy(`Saving ${Math.min(i + 100, rows.length)} of ${rows.length}…`);
-      const { error } = await supabase.from("practices").upsert(rows.slice(i, i + 100), { onConflict: "id" });
-      if (error) {
-        setBusy("");
-        return toast("Import stopped: " + error.message);
-      }
-    }
+    const r = await importOffices(setBusy);
     setBusy("");
+    if (!r.ok) return toast("Import stopped: " + r.error);
     await reload(["practices"]);
-    toast(`Office list loaded: ${rows.length} offices`);
+    toast(`Office list loaded: ${r.count} offices`);
   };
   return (
     <section className="panelbox">
