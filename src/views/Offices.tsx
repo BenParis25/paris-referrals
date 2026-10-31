@@ -4,8 +4,8 @@ import { SEGMENTS } from "../lib/types";
 import { firstName } from "../lib/util";
 
 export default function Offices() {
-  const { me, practices, claims, taken, byId, openOffice } = useStore();
-  const isTaken = (id: string) => !!claims[id] || taken.has(id);
+  const { me, practices, claims, taken, claimsFor, byId, openOffice } = useStore();
+  const isTaken = (id: string) => taken.has(id) || claimsFor(id).some((c) => c.clinician_id === me.id);
   const [q, setQ] = useState("");
   const [area, setArea] = useState("all");
   const [seg, setSeg] = useState(me.clinical ? "mine" : "all");
@@ -79,9 +79,10 @@ export default function Offices() {
       <div className="count">{rows.length} offices</div>
       <div className="plist">
         {rows.slice(0, limit).map((p) => {
-          const c = claims[p.id];
-          const owner = c ? byId(c.clinician_id) : undefined;
-          const mineC = c && c.clinician_id === me.id;
+          const all = claimsFor(p.id);
+          const c = all.find((x) => x.clinician_id === me.id) || all[0];
+          const mineC = !!c && c.clinician_id === me.id;
+          const label = all.map((x) => `${firstName(byId(x.clinician_id)?.name || "Teammate")} · ${x.status}`).join(" + ");
           return (
             <button className="prow" type="button" key={p.id} onClick={() => openOffice(p.id)}>
               <b className={"prio " + p.priority}>{p.priority}</b>
@@ -98,7 +99,7 @@ export default function Offices() {
               </span>
               {c ? (
                 <span className={"st" + (mineC ? "" : " other")} data-s={mineC ? c.status : undefined}>
-                  {mineC ? c.status : `${firstName(owner?.name || "Teammate")} · ${c.status}`}
+                  {mineC && all.length === 1 ? c.status : label}
                 </span>
               ) : taken.has(p.id) ? (
                 <span className="st other">Taken</span>

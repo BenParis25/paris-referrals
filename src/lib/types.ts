@@ -47,6 +47,7 @@ export interface Practice {
 
 export interface Claim {
   practice_id: string;
+  lane: "rx" | "therapy";
   clinician_id: string;
   status: ClaimStatus;
   contact_name: string;

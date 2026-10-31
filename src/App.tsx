@@ -24,6 +24,7 @@ interface Store {
   practices: Practice[];
   claims: Record<string, Claim>;
   taken: Set<string>;
+  claimsFor: (practiceId: string) => Claim[];
   settings: Settings;
   reload: (what?: ("clinicians" | "practices" | "claims" | "settings")[]) => Promise<void>;
   toast: (t: string) => void;
@@ -147,7 +148,7 @@ function Signed({ session }: { session: Session }) {
         jobs.push(
           supabase.from("claims").select("*").range(0, 1999).then(({ data }) => {
             const m: Record<string, Claim> = {};
-            ((data || []) as Claim[]).forEach((c) => (m[c.practice_id] = c));
+            ((data || []) as Claim[]).forEach((c) => (m[c.practice_id + "|" + c.lane] = c));
             setClaims(m);
           }),
         );
@@ -209,12 +210,16 @@ function Signed({ session }: { session: Session }) {
     return () => window.removeEventListener("hashchange", f);
   }, []);
 
+  const claimsFor = useCallback(
+    (pid: string) => Object.values(claims).filter((c) => c.practice_id === pid).sort((a, b) => (a.clinician_id === me?.id ? -1 : b.clinician_id === me?.id ? 1 : 0)),
+    [claims, me],
+  );
   const byId = useCallback((id: string | null | undefined) => clinicians.find((c) => c.id === id), [clinicians]);
 
   const store = useMemo<Store | null>(
     () =>
-      me ? { me, clinicians, practices, claims, taken, settings, reload, toast, openOffice: setOpenId, byId } : null,
-    [me, clinicians, practices, claims, taken, settings, reload, toast, byId],
+      me ? { me, clinicians, practices, claims, taken, claimsFor, settings, reload, toast, openOffice: setOpenId, byId } : null,
+    [me, clinicians, practices, claims, taken, claimsFor, settings, reload, toast, byId],
   );
 
   const signOut = () => supabase.auth.signOut();

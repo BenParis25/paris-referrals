@@ -6,9 +6,11 @@ import { CLAIM_STATUSES, type Activity, type ClaimStatus } from "../lib/types";
 import { copyText, fmtWhen, firstName } from "../lib/util";
 
 export default function OfficePanel({ id, onClose }: { id: string; onClose: () => void }) {
-  const { me, practices, claims, taken, clinicians, settings, byId, reload, toast } = useStore();
+  const { me, practices, taken, claimsFor, clinicians, settings, byId, reload, toast } = useStore();
   const p = practices.find((x) => x.id === id);
-  const claim = claims[id];
+  const all = claimsFor(id);
+  const [laneSel, setLaneSel] = useState<string | null>(null);
+  const claim = all.find((c) => c.lane === laneSel) || all.find((c) => c.clinician_id === me.id) || (me.is_admin ? all[0] : undefined);
   const owner = claim ? byId(claim.clinician_id) : undefined;
   const mine = !!claim && claim.clinician_id === me.id;
   const canEdit = mine || me.is_admin;
@@ -69,14 +71,14 @@ export default function OfficePanel({ id, onClose }: { id: string; onClose: () =
     const { error } = await supabase.from("claims").insert({ practice_id: id, clinician_id: me.id });
     if (error) {
       await reload(["claims"]);
-      return toast(error.code === "23505" ? "A teammate just claimed this office." : "Couldn't claim: " + error.message);
+      return toast(error.code === "23505" ? "Someone just claimed this office." : "Couldn't claim: " + error.message);
     }
     await logIt("claimed", "Claimed");
     await reload(["claims"]);
     toast("It's yours. Call them.");
   };
   const release = async () => {
-    const { error } = await supabase.from("claims").delete().eq("practice_id", id);
+    const { error } = await supabase.from("claims").delete().eq("practice_id", id).eq("lane", claim!.lane);
     if (error) return toast("Couldn't release: " + error.message);
     await logIt("released", `Released by ${me.name}`);
     await reload(["claims"]);
@@ -84,7 +86,7 @@ export default function OfficePanel({ id, onClose }: { id: string; onClose: () =
   };
   const setStatus = async (s: ClaimStatus) => {
     if (!claim || claim.status === s) return;
-    const { error } = await supabase.from("claims").update({ status: s }).eq("practice_id", id);
+    const { error } = await supabase.from("claims").update({ status: s }).eq("practice_id", id).eq("lane", claim.lane);
     if (error) return toast("Couldn't save: " + error.message);
     await logIt("status", `${claim.status} → ${s}`);
     await reload(["claims"]);
@@ -94,14 +96,15 @@ export default function OfficePanel({ id, onClose }: { id: string; onClose: () =
     const { error } = await supabase
       .from("claims")
       .update({ ...form, next_date: form.next_date || null })
-      .eq("practice_id", id);
+      .eq("practice_id", id)
+      .eq("lane", claim!.lane);
     if (error) return toast("Couldn't save: " + error.message);
     await reload(["claims"]);
     toast("Saved");
   };
   const reassign = async (to: string) => {
     if (!claim || to === claim.clinician_id) return;
-    const { error } = await supabase.from("claims").update({ clinician_id: to }).eq("practice_id", id);
+    const { error } = await supabase.from("claims").update({ clinician_id: to }).eq("practice_id", id).eq("lane", claim.lane);
     if (error) return toast("Couldn't reassign: " + error.message);
     await logIt("note", `Reassigned to ${byId(to)?.name}`);
     await reload(["claims"]);
@@ -185,14 +188,32 @@ export default function OfficePanel({ id, onClose }: { id: string; onClose: () =
           </section>
 
           {!claim && taken.has(id) && (
-            <p className="notice">Another therapist is already working this office. Pick a different one so nobody gets called twice.</p>
+            <p className="notice">
+              {me.is_prescriber ? "Another prescriber" : "Another therapist"} is already working this office. Pick a different one so
+              nobody gets called twice.
+            </p>
+          )}
+
+          {me.is_admin && all.length > 1 && (
+            <div className="row small">
+              <span className="muted">Two people are working this office:</span>
+              <div className="seg-ctl" role="group" aria-label="Which outreach">
+                {all.map((c) => (
+                  <button key={c.lane} type="button" aria-pressed={claim?.lane === c.lane} onClick={() => setLaneSel(c.lane)}>
+                    {byId(c.clinician_id)?.name || "Teammate"} ({c.lane === "rx" ? "medication" : "therapy"})
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
 
           {!claim && !taken.has(id) && (
             <section className="claimbox">
               <b>Nobody owns this office yet.</b>
               <span className="small">
-                Claim it and it's yours to call. Other therapists will see it's taken, but not your name or notes.
+                Claim it and it's yours to call. {me.is_prescriber
+                  ? "Therapists can still pitch therapy here; only another prescriber is blocked."
+                  : "Other therapists will see it's taken, but not your name or notes. Andrew can still pitch medication management here."}
                 {!fitsMe && me.clinical ? " Heads up: this type of office isn't on your usual list." : ""}
               </span>
               <div className="row">
