@@ -76,7 +76,7 @@ export function buildLetter(
 ): { subject: string; body: string } {
   const subject = subjectFor(me, p);
   const contact = (claim.contact_name || "").trim();
-  const sign = [`${me.name}${me.creds ? ", " + me.creds : ""}`, `${roleTail(me)}, Paris Counseling`, `${s.phone} · ${s.email}`, "pariscounselingllc.org"];
+  const sign = [`${me.name}${me.creds ? ", " + me.creds : ""}`, `${me.role.split("·")[0].trim()}, Paris Counseling`, `${s.phone} · ${s.email}`, "pariscounselingllc.org"];
   const how = `To refer: call ${s.phone}${s.fax ? `, fax ${s.fax}` : ""}, or have the ${clientWord(p).slice(0, -1)} request an appointment at ${s.request_url}. Mention my name${colleagues.length ? " or my colleague's" : ""} so it comes straight to ${colleagues.length ? "the right person" : "me"}.`;
 
   if (fmt === "call") {
