@@ -6,7 +6,7 @@ import { CLAIM_STATUSES, type Activity, type ClaimStatus } from "../lib/types";
 import { copyText, fmtWhen, firstName } from "../lib/util";
 
 export default function OfficePanel({ id, onClose }: { id: string; onClose: () => void }) {
-  const { me, practices, claims, clinicians, settings, byId, reload, toast } = useStore();
+  const { me, practices, claims, taken, clinicians, settings, byId, reload, toast } = useStore();
   const p = practices.find((x) => x.id === id);
   const claim = claims[id];
   const owner = claim ? byId(claim.clinician_id) : undefined;
@@ -184,11 +184,15 @@ export default function OfficePanel({ id, onClose }: { id: string; onClose: () =
             </dl>
           </section>
 
-          {!claim && (
+          {!claim && taken.has(id) && (
+            <p className="notice">Another therapist is already working this office. Pick a different one so nobody gets called twice.</p>
+          )}
+
+          {!claim && !taken.has(id) && (
             <section className="claimbox">
               <b>Nobody owns this office yet.</b>
               <span className="small">
-                Claim it and it's yours to call. Teammates will see your name on it.
+                Claim it and it's yours to call. Other therapists will see it's taken, but not your name or notes.
                 {!fitsMe && me.clinical ? " Heads up: this type of office isn't on your usual list." : ""}
               </span>
               <div className="row">
@@ -234,7 +238,7 @@ export default function OfficePanel({ id, onClose }: { id: string; onClose: () =
                   <input id="t-next" type="date" value={form.next_date} onChange={(e) => setForm({ ...form, next_date: e.target.value })} />
                 </label>
                 <label className="field wide" htmlFor="t-notes">
-                  Notes about the office (never client names)
+                  Notes about the office (private to you and admins; never client names)
                   <textarea id="t-notes" rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
                 </label>
               </div>

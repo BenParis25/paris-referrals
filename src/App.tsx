@@ -23,6 +23,7 @@ interface Store {
   clinicians: Clinician[];
   practices: Practice[];
   claims: Record<string, Claim>;
+  taken: Set<string>;
   settings: Settings;
   reload: (what?: ("clinicians" | "practices" | "claims" | "settings")[]) => Promise<void>;
   toast: (t: string) => void;
@@ -40,7 +41,7 @@ type Tab = "week" | "offices" | "team" | "admin";
 const TABS: { id: Tab; label: string; admin?: boolean }[] = [
   { id: "week", label: "My week" },
   { id: "offices", label: "Find offices" },
-  { id: "team", label: "Team openings" },
+  { id: "team", label: "Team openings", admin: true },
   { id: "admin", label: "Admin", admin: true },
 ];
 const tabFromHash = (): Tab => {
@@ -113,6 +114,7 @@ function Signed({ session }: { session: Session }) {
   const [clinicians, setClinicians] = useState<Clinician[]>([]);
   const [practices, setPractices] = useState<Practice[]>([]);
   const [claims, setClaims] = useState<Record<string, Claim>>({});
+  const [taken, setTaken] = useState<Set<string>>(new Set());
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [tab, setTab] = useState<Tab>(tabFromHash());
   const [openId, setOpenId] = useState<string | null>(null);
@@ -147,6 +149,12 @@ function Signed({ session }: { session: Session }) {
             const m: Record<string, Claim> = {};
             ((data || []) as Claim[]).forEach((c) => (m[c.practice_id] = c));
             setClaims(m);
+          }),
+        );
+      if (what.includes("claims"))
+        jobs.push(
+          supabase.rpc("taken_offices").then(({ data }) => {
+            setTaken(new Set(((data || []) as unknown[]).map((r) => (typeof r === "string" ? r : Object.values(r as object)[0] as string))));
           }),
         );
       if (what.includes("settings"))
@@ -191,6 +199,11 @@ function Signed({ session }: { session: Session }) {
   }, [reload]);
 
   useEffect(() => {
+    const t = window.setInterval(() => reload(["claims"]), 60000);
+    return () => window.clearInterval(t);
+  }, [reload]);
+
+  useEffect(() => {
     const f = () => setTab(tabFromHash());
     window.addEventListener("hashchange", f);
     return () => window.removeEventListener("hashchange", f);
@@ -200,8 +213,8 @@ function Signed({ session }: { session: Session }) {
 
   const store = useMemo<Store | null>(
     () =>
-      me ? { me, clinicians, practices, claims, settings, reload, toast, openOffice: setOpenId, byId } : null,
-    [me, clinicians, practices, claims, settings, reload, toast, byId],
+      me ? { me, clinicians, practices, claims, taken, settings, reload, toast, openOffice: setOpenId, byId } : null,
+    [me, clinicians, practices, claims, taken, settings, reload, toast, byId],
   );
 
   const signOut = () => supabase.auth.signOut();
@@ -251,7 +264,7 @@ function Signed({ session }: { session: Session }) {
       <main className="wrap">
         {tab === "week" && <MyWeek onFind={() => go("offices")} />}
         {tab === "offices" && <Offices />}
-        {tab === "team" && <Team />}
+        {tab === "team" && me.is_admin && <Team />}
         {tab === "admin" && me.is_admin && <Admin />}
       </main>
       <footer>

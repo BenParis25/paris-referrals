@@ -13,7 +13,7 @@ No client information (PHI) is ever stored. Practice contact data and clinician 
 Vite + React + TypeScript on Vercel. Supabase (Postgres + Google sign-in, row-level security).
 
 - Sign-in: Google OAuth (Internal to the pariscounselingllc.org Workspace). Only emails on the roster get any data.
-- Access rules: `supabase/migrations/001_init.sql`. Everyone on the roster reads everything; you edit only your own card and your own claimed offices; admins edit all.
+- Access rules: `supabase/migrations/001_init.sql`. Each therapist sees and edits only their own card, offices and history; others only see that an office is taken. Admins see and edit everything.
 - Claims with no update for 30 days are released nightly (`002_stale_claims.sql`, pg_cron).
 
 ## Env

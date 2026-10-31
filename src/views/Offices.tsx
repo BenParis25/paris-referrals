@@ -4,7 +4,8 @@ import { SEGMENTS } from "../lib/types";
 import { firstName } from "../lib/util";
 
 export default function Offices() {
-  const { me, practices, claims, byId, openOffice } = useStore();
+  const { me, practices, claims, taken, byId, openOffice } = useStore();
+  const isTaken = (id: string) => !!claims[id] || taken.has(id);
   const [q, setQ] = useState("");
   const [area, setArea] = useState("all");
   const [seg, setSeg] = useState(me.clinical ? "mine" : "all");
@@ -20,7 +21,7 @@ export default function Offices() {
       .filter((p) => (area === "all" ? true : p.area === area))
       .filter((p) => (seg === "all" ? true : seg === "mine" ? me.target_segments.includes(p.segment) : p.segment === seg))
       .filter((p) => (indep ? p.system === "Independent" : true))
-      .filter((p) => (show === "open" ? !claims[p.id] : show === "claimed" ? !!claims[p.id] : true))
+      .filter((p) => (show === "open" ? !isTaken(p.id) : show === "claimed" ? isTaken(p.id) : true))
       .filter((p) =>
         t ? (p.practice + " " + p.address + " " + p.city + " " + p.zip + " " + p.clinicians.join(" ")).toLowerCase().includes(t) : true,
       )
@@ -32,9 +33,9 @@ export default function Offices() {
           b.clinician_count - a.clinician_count ||
           a.practice.localeCompare(b.practice),
       );
-  }, [practices, claims, q, area, seg, show, indep, me]);
+  }, [practices, claims, taken, q, area, seg, show, indep, me]);
 
-  const openCount = practices.filter((p) => !p.hidden && !claims[p.id]).length;
+  const openCount = practices.filter((p) => !p.hidden && !isTaken(p.id)).length;
 
   return (
     <>
@@ -43,7 +44,7 @@ export default function Offices() {
           <h1>Offices near our offices</h1>
           <p className="lede">
             {openCount} of {practices.filter((p) => !p.hidden).length} offices are unclaimed. Open one, claim it, and it's
-            yours to call. Teammates see it's taken.
+            yours to call. Other therapists only see that it's taken, not by whom.
           </p>
         </div>
       </div>
@@ -63,8 +64,8 @@ export default function Offices() {
         </select>
         <select id="f-show" value={show} onChange={(e) => { setShow(e.target.value as typeof show); setLimit(60); }} aria-label="Claimed">
           <option value="open">Unclaimed only</option>
-          <option value="claimed">Claimed only</option>
-          <option value="all">Claimed and unclaimed</option>
+          <option value="claimed">Taken only</option>
+          <option value="all">Open and taken</option>
         </select>
         <label className="chk">
           <input type="checkbox" id="f-indep" checked={indep} onChange={(e) => setIndep(e.target.checked)} /> Independent only
@@ -99,6 +100,8 @@ export default function Offices() {
                 <span className={"st" + (mineC ? "" : " other")} data-s={mineC ? c.status : undefined}>
                   {mineC ? c.status : `${firstName(owner?.name || "Teammate")} · ${c.status}`}
                 </span>
+              ) : taken.has(p.id) ? (
+                <span className="st other">Taken</span>
               ) : (
                 <span className="st">Open</span>
               )}
